@@ -1,0 +1,98 @@
+---
+title: "team3-Final"
+author: "LD"
+format: pdf
+editor: visual
+---
+
+## Introduction
+
+CRY1 cryptochrome circadian regulator 1 is a gene that helps regulate the circadian clock or the body's internal clock (NIH.gov). The gene is activated by proteins including CLOCK/ARNTL and is turned off in a feedback loop with proteins such as PER/CRY. Therefore, changes in the genes can affect sleep patterns.
+
+#### The Dataset
+
+The dataset includes records of 90 small molecules created for CRY1. Per dataset creators, 27 of these molecules make the circadian rhythm longer while the remaining 63 molecules have no affect. There are 1177 molecular discriptive features.
+
+#### Objective
+
+Perform EDA, feature selection and classification tasks. Use Gradient Boosting ML algorithms to identify the best set of molecular descriptors for the model. Finally, perform comprehensive predictive modeling techniques on the data.
+
+## EDA
+
+Load Libraries
+
+```{r warning=FALSE, message=FALSE}
+library(knitr)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(corrplot)
+library(caret)
+```
+
+Read data
+
+```{r}
+df_data <- read.csv("data.csv", stringsAsFactors = F)
+df_period <- read.csv("Period-Changer-10F.csv", stringsAsFactors = F)
+```
+
+```{r}
+dim(df_data)
+```
+
+```{r}
+sum(is.na.data.frame(df_data))
+```
+
+```{r}
+dim(df_period)
+```
+
+```{r}
+sum(is.na.data.frame(df_period))
+```
+
+```{r}
+str(df_data[,c(1:10)])
+```
+
+```{r}
+str(df_period)
+```
+
+```{r}
+# Compute correlations and find correlated variables to remove
+numeric_df <- df_data[sapply(df_data, is.numeric)]
+correlations <- cor(numeric_df)
+high_correlations <- findCorrelation(correlations, cutoff = .75)
+length(high_correlations)
+```
+
+```{r}
+# Check for degenerate distribution
+degeneratecols <- nearZeroVar(df_data)
+
+degenerate_table <- data.frame(
+  Column = degeneratecols,
+  Predictor = colnames(df_data)[degeneratecols],
+  stringsAsFactors = FALSE
+)
+degenerate_table |> head() |> knitr::kable()
+```
+
+```{r}
+nrow(degenerate_table)
+```
+
+#### Resampling
+
+```{r}
+
+```
+
+#### Regularization
+
+```{r}
+
+```
