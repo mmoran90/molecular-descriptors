@@ -57,74 +57,51 @@ ctrl <- trainControl(method = "cv",
                      savePredictions = TRUE)
 ```
 
-```{r}
-set.seed(720)
 
-lrFit <- train(x = train[,1:216], 
+```{r}
+class_function<- function(method){
+  model<- train(x = train[,1:216], 
                y = train$Class,
-               method = "glm",
+               method = method,
                preProc = c("center", "scale"),
                metric = "ROC",
                trControl = ctrl)
-lrFit
-lrFit$finalModel
+}
 
-lrCM <- confusionMatrix(lrFit, norm = "none")
-lrCM
-
-lrRoc <- roc(response = lrFit$pred$obs,
-             predictor = lrFit$pred$Changer,
-             levels = rev(levels(lrFit$pred$obs)))
-
-plot(lrRoc, legacy.axes = TRUE)
-lrRoc$auc
-
-plot(lrImp)
+class_function_tune<- function(method, grid){
+  model<- train(x = train[,1:126], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               metric = "ROC",
+               trControl = ctrl)
+}
 ```
 
 ```{r}
 set.seed(720)
-ldaFit <- train(x = train[,1:216], 
-                y = train$Class,
-                method = "lda",
-                preProc = c("center", "scale"),
-                metric = "ROC",
-                trControl = ctrl)
-ldaFit
-ldaFit$finalModel
 
-ldaCM <- confusionMatrix(ldaFit, norm = "none")
-ldaCM
-
-## Plot the ROC curve for the hold-out set
-ldaRoc <- roc(response = ldaFit$pred$obs,
-             predictor = ldaFit$pred$Changer,
-             levels = rev(levels(ldaFit$pred$obs)))
-
-plot(ldaRoc, legacy.axes = TRUE)
-
-varImp(ldaFit)
-```
-
-```{r}
 glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
-set.seed(720)
-glmnFit <- train(x = train[,1:216], 
-                 y = train$Class,
-                 method = "glmnet",
-                 tuneGrid = glmnGrid,
-                 preProc = c("center", "scale"),
-                 metric = "ROC",
-                 trControl = ctrl)
 
-glmnetCM <- confusionMatrix(glmnFit, norm = "none")
-glmnetCM
+nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
 
-glmRoc <- roc(response = glmnFit$pred$obs,
-             predictor = glmnFit$pred$Changer,
-             levels = rev(levels(glmnFit$pred$obs)))
-
-plot(glmRoc, legacy.axes = TRUE)
+lr<- class_function("glm")
+lda<- class_function("lda")
+glmn<- class_function_tune("glmnet", glmnGrid)
+nsc<- class_function_tune("pam", nsc_grid)
 ```
 
+```{r}
+model_roc <- function(model){
+  roc(response = model$pred$obs,
+             predictor = model$pred$Changer,
+             levels = rev(levels(model$pred$obs)))
+}
+
+model_roc(lr)
+model_roc(lda)
+model_roc(glmn)
+model_roc(nsc)
+```
