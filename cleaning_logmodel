@@ -51,10 +51,6 @@ trainingRows <- createDataPartition(changer_new$Class, p = .5, list = FALSE)
 train <- changer_new[trainingRows, ]
 test <- changer_new[-trainingRows, ]
 
-trainimp <- preProcess(train, method = c("center", "scale"))
-trainpr <- predict(trainimp, train)
-testpr <- predict(trainimp, test)
-
 ctrl <- trainControl(method = "cv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE,
@@ -64,9 +60,10 @@ ctrl <- trainControl(method = "cv",
 ```{r}
 set.seed(720)
 
-lrFit <- train(x = trainpr[,1:216], 
-               y = trainpr$Class,
+lrFit <- train(x = train[,1:216], 
+               y = train$Class,
                method = "glm",
+               preProc = c("center", "scale"),
                metric = "ROC",
                trControl = ctrl)
 lrFit
@@ -87,8 +84,8 @@ plot(lrImp)
 
 ```{r}
 set.seed(720)
-ldaFit <- train(x = trainpr[,1:216], 
-                y = trainpr$Class,
+ldaFit <- train(x = train[,1:216], 
+                y = train$Class,
                 method = "lda",
                 preProc = c("center", "scale"),
                 metric = "ROC",
@@ -113,8 +110,8 @@ varImp(ldaFit)
 glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
 set.seed(720)
-glmnFit <- train(x = trainpr[,1:216], 
-                 y = trainpr$Class,
+glmnFit <- train(x = train[,1:216], 
+                 y = train$Class,
                  method = "glmnet",
                  tuneGrid = glmnGrid,
                  preProc = c("center", "scale"),
