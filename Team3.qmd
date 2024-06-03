@@ -1,6 +1,9 @@
 ---
 title: "team3-Final"
-author: "LD"
+author:
+- Lorena Dorado
+- Madeline Chang
+- Marvin Moran
 format: pdf
 editor: visual
 ---
@@ -22,77 +25,119 @@ Perform EDA, feature selection and classification tasks. Use Gradient Boosting M
 Load Libraries
 
 ```{r warning=FALSE, message=FALSE}
-library(knitr)
-library(ggplot2)
-library(plyr)
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(earth)
+library(kernlab)
+library(mlbench)
+library(randomForest)
 library(dplyr)
 library(corrplot)
-library(caret)
+library(pROC)
+library(RANN)
+library(glmnet)
+library(gt)
 ```
 
 Read data
 
 ```{r}
-df_data <- read.csv("data.csv", stringsAsFactors = F)
-df_period <- read.csv("Period-Changer-10F.csv", stringsAsFactors = F)
+# Read data
+changer_data <- read.csv("data.csv", stringsAsFactors = F)
 ```
 
 ```{r}
-dim(df_data)
+# Check for and remove zero variance predictors
+degen<- nearZeroVar(changer_data)
+changer_new<- changer_data[,-degen]
 ```
 
 ```{r}
-sum(is.na.data.frame(df_data))
+# Remove highy correlated variables of 75%
+corr<- cor(changer_new[,1:1094])
+high_corr <- findCorrelation(corr, cutoff = 0.75)
+changer_new<- changer_new[,-high_corr]
 ```
 
 ```{r}
-dim(df_period)
+# Count instances per class
+changer_new |>
+  group_by(Class) |>
+  summarise(n = n()) |>
+  gt::gt()
 ```
 
 ```{r}
-sum(is.na.data.frame(df_period))
+set.seed(720)
+
+# Create stratified random splits of the data
+trainingRows <- createDataPartition(changer_new$Class, p = .5, list = FALSE) 
+train <- changer_new[trainingRows, ]
+test <- changer_new[-trainingRows, ]
+
+# Create control methods for cross validation
+ctrl <- trainControl(method = "cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+```
+
+## Required index?
+
+```{r}
+# Train models and evaluate with ROC
+class_function<- function(method){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Train models and evaluate hyperparameters and tune with ROC
+class_function_tune<- function(method, grid){
+  model<- train(x = train[,1:126], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               metric = "ROC",
+               trControl = ctrl)
+}
+```
+
+```{r warning=FALSE, message=FALSE}
+#| cache: true
+set.seed(720)
+
+# Grid for train to use
+glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
+                        lambda = seq(.01, .2, length = 10))
+
+# NSC tuning parameters
+nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
+
+lr<- class_function("glm") # Linear Regression
+lda<- class_function("lda") # Linear Discriminant Analysis
+glmn<- class_function_tune("glmnet", glmnGrid) # Penalized LogReg
+nsc<- class_function_tune("pam", nsc_grid) # Nearest Shrunken Centroids
 ```
 
 ```{r}
-str(df_data[,c(1:10)])
-```
+# Predict test data set and corresponding ROC
+model_roc <- function(model){
+  roc(response = model$pred$obs,
+             predictor = model$pred$Changer,
+             levels = rev(levels(model$pred$obs)))
+}
 
-```{r}
-str(df_period)
-```
-
-```{r}
-# Compute correlations and find correlated variables to remove
-numeric_df <- df_data[sapply(df_data, is.numeric)]
-correlations <- cor(numeric_df)
-high_correlations <- findCorrelation(correlations, cutoff = .75)
-length(high_correlations)
-```
-
-```{r}
-# Check for degenerate distribution
-degeneratecols <- nearZeroVar(df_data)
-
-degenerate_table <- data.frame(
-  Column = degeneratecols,
-  Predictor = colnames(df_data)[degeneratecols],
-  stringsAsFactors = FALSE
-)
-degenerate_table |> head() |> knitr::kable()
-```
-
-```{r}
-nrow(degenerate_table)
-```
-
-#### Resampling
-
-```{r}
-
-```
-
-#### Regularization
-
-```{r}
-
+model_roc(lr)
+model_roc(lda)
+model_roc(glmn)
+model_roc(nsc)
 ```
