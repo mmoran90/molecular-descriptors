@@ -23,50 +23,62 @@ library(corrplot)
 library(pROC)
 library(RANN)
 library(glmnet)
+library(gt)
+library(RCurl)
 ```
 
 ```{r}
-changer_data<- read.csv('/Users/mtc/ADS/ADS 503/Project/period+changer-2/data.csv', header = TRUE) %>%
-  mutate(Class = as.factor(Class))
+url <- "https://github.com/renaqd/team3-ADS503/raw/main/data.csv"
+changer_data<- read.csv(url)
 ```
 
 ```{r}
+# Check for and remove zero variance predictors
 degen<- nearZeroVar(changer_data)
 changer_new<- changer_data[,-degen]
 
+# Remove highly correlated variables of 75%
 corr<- cor(changer_new[,1:1094])
 high_corr <- findCorrelation(corr, cutoff = 0.75)
 changer_new<- changer_new[,-high_corr]
 
+# Create vector to store 216 values
+# For each column of predictors (1 to 216), calculate skew and store in skewed
 skewed<- length(216)
 for(i in 1:216){
   skewed[i]<- skewness(changer_new[,i], na.rm = TRUE, type = 1)
 }
-
+# See where most of the data falls in range
 boxplot(skewed)
 ```
 
 ```{r}
+# Group data by class
 changer_new %>%
   group_by(Class) %>%
-  summarise(n = n())
+  summarise(n = n()) %>%
+  gt::gt()
 ```
 
 ```{r}
 set.seed(720)
-
+# Create stratified random splits of the data (based on the classes)
 trainingRows <- createDataPartition(changer_new$Class, p = .5, list = FALSE) 
+
+# Subset data into train and test
 train <- changer_new[trainingRows, ]
 test <- changer_new[-trainingRows, ]
 
+# Create control method for cross validation
 ctrl <- trainControl(method = "cv",
                      summaryFunction = twoClassSummary,
                      classProbs = TRUE,
                      savePredictions = TRUE)
 ```
 
-
+#### Create a functions that train ML models with different parameters
 ```{r}
+# Method
 class_function<- function(method){
   model<- train(x = train[,1:216], 
                y = train$Class,
@@ -76,6 +88,7 @@ class_function<- function(method){
                trControl = ctrl)
 }
 
+# Method and Grid
 class_grid<- function(method, grid){
   model<- train(x = train[,1:216], 
                y = train$Class,
@@ -86,19 +99,7 @@ class_grid<- function(method, grid){
                trControl = ctrl)
 }
 
-class_nnet<- function(method, grid, maxit){
-  model<- train(x = train[,1:216], 
-               y = train$Class,
-               method = method,
-               preProc = c("center", "scale"),
-               tuneGrid = grid,
-               maxit = maxit,
-               trace = FALSE, 
-               metric = "ROC",
-               trControl = ctrl)
-}
-
-
+# Method and Length
 class_length<- function(method, length){
   model<- train(x = train[,1:216], 
                y = train$Class,
@@ -109,6 +110,7 @@ class_length<- function(method, length){
                trControl = ctrl)
 }
 
+# Method and Bagging number
 class_bag<- function(method, nbagg){
   model<- train(x = train[,1:216], 
                y = train$Class,
@@ -119,6 +121,7 @@ class_bag<- function(method, nbagg){
                trControl = ctrl)
 }
 
+# Method and Number of trees
 class_rf<- function(method, grid, ntree){
   model<- train(x = train[,1:216], 
                y = train$Class,
@@ -132,41 +135,61 @@ class_rf<- function(method, grid, ntree){
 
 ```
 
+#### Train the ML models with different parameters defined in grids
 ```{r}
 set.seed(720)
 
+# Penalized Models based on  regularization parameters
 glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
                         lambda = seq(.01, .2, length = 10))
 
-nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
+# DELETED: nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
 
-# mda_grid<- data.frame(subclasses=1)
+# Mixture Distriminant Analysis
+mda_grid<- data.frame(subclasses=1)
 
+# Regularization parameter on a log scale (e.g. 0.001, 0.01, ... 10)
+
+# Neural Network
 nnet_grid <- expand.grid(size=1:4, decay=c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4))
 
+# SVM
 sigmaEst <- kernlab::sigest(as.matrix(train[,1:216]))
 svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-4,+4))
 
+# RF Tuning parameter
 mtryValues <- data.frame(mtry = seq(1,10,1))
 
+# Generalized Linear Model: Logistic Regression
 lr<- class_function("glm")
+
+# Linear Discriminant Analysis
 lda<- class_function("lda")
 
+# ???? with ENET model?
 glmn<- class_grid("glmnet", glmnGrid)
+
+# Nearest Shrunken Centroids with PAM model
 nsc<- class_grid("pam", nsc_grid)
-# mda<- class_grid("mda", mda_grid)
+
+# DELETED: mda<- class_grid("mda", mda_grid)
+
+# SVM with radial
 svmR<- class_grid("svmRadial", svmgrid)
 
-nnet<- class_nnet("nnet", nnet_grid, 100)
-
+# K Nearest Neighbors
 knn<- class_length("knn", 20)
 
+# Bagging
 bag<- class_bag("treebag", 50)
 
+# Random Forest
 rf<- class_rf("rf", mtryValues, 100)
 ```
 
+#### Evaluating Predictive Performance
 ```{r}
+# Create a function that computes ROC curves of trained models
 model_roc <- function(model){
   roc(response = model$pred$obs,
              predictor = model$pred$Changer,
@@ -183,6 +206,7 @@ model_roc(bag)
 model_roc(rf)
 
 
+# Compare Models
 train_re<- resamples(list(
   lr = lr,
   lda = lda,
@@ -196,7 +220,3 @@ train_re<- resamples(list(
 
 dotplot(train_re, metric = "ROC")
 ```
-
-
-
-
