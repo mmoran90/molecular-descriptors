@@ -23,10 +23,13 @@ library(corrplot)
 library(pROC)
 library(RANN)
 library(glmnet)
+library(ggplot2)
+install.packages("igraph")
+library(igraph)
 ```
 
 ```{r}
-changer_data<- read.csv('/Users/mtc/ADS/ADS 503/Project/period+changer-2/data.csv', header = TRUE) %>%
+changer_data<- read.csv('data.csv', header = TRUE) %>%
   mutate(Class = as.factor(Class))
 ```
 
@@ -50,6 +53,9 @@ boxplot(skewed)
 changer_new %>%
   group_by(Class) %>%
   summarise(n = n())
+
+#write.csv(changer_new, "changer_new.csv", row.names = FALSE)
+
 ```
 
 ```{r}
@@ -197,6 +203,82 @@ train_re<- resamples(list(
 dotplot(train_re, metric = "ROC")
 ```
 
+** Exploratory Data Analysis **
+
+```{r}
+
+# data summary
+summary(changer_new)
+
+```
+
+```{r}
+
+# missing values
+missing_values <- sapply(changer_new, function(x) sum(is.na(x)))
+
+if(any(missing_values > 0)) {
+  print(missing_values[missing_values > 0])
+} else {
+  print("No features found with missing values")
+}
+
+```
+
+```{r}
+
+# identify numerical features
+numerical_features <- changer_new[, sapply(changer_new, is.numeric)]
+
+# print distribution for numerical features to PDF <<-- already done and found in GitHub
+pdf("numerical_distributions.pdf")
+lapply(names(numerical_features), function(feature) {
+    ggplot(changer_new, aes_string(x = feature)) + 
+        geom_histogram(bins = 30, fill = "blue", color = "black") + 
+        ggtitle(paste("Distribution of", feature))
+})
+dev.off()
+
+```
+
+```{r}
+
+# corr matrix
+#cor_matrix <- cor(numerical_features, use = "complete.obs")
+
+# plot correlation matrix
+#png("correlation_matrix.png")
+#corrplot(cor_matrix, method = "color", type = "upper", order = "hclust", 
+         #tl.col = "black", tl.srt = 45)
+#dev.off()
+
+```
+
+```{r}
+
+# set threshold for significant correlations
+threshold <- 0.75
+
+# create adjacency matrix where correlations above the threshold are marked
+adjacency_matrix <- abs(cor_matrix) > threshold
+
+# convert adjacency matrix to graph
+graph <- graph.adjacency(adjacency_matrix, mode = "undirected", weighted = TRUE)
+E(graph)$weight <- cor_matrix[adjacency_matrix]
+
+# plot the graph
+plot(graph, vertex.size = 10, vertex.label.cex = 0.7, edge.width = E(graph)$weight * 2)
+
+```
+
+```{r}
+
+# class distribution <<- code above shows numeric values only, this is a visual
+class_distribution <- table(changer_new$Class)
+barplot(class_distribution, main = "Class Distribution", col = "cyan",
+        xlab = "Class", ylab = "Frequency")
+
+```
 
 
 
