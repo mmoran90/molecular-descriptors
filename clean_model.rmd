@@ -384,10 +384,10 @@ knn_r<- class_length("knn", 20)
 **Dot Plot of Selected Models**
 ```{r, warning=FALSE, message=FALSE}
 train_re<- resamples(list(
-  lr = lr,
-  glmn = glmn,
-  nsc = nsc,
-  knn = knn
+  lr = lr_r,
+  glmn = glmn_r,
+  nsc = nsc_r,
+  knn = knn_r
 ))
 
 dotplot(train_re, metric = "ROC")
