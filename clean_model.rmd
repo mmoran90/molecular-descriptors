@@ -317,6 +317,7 @@ svmRROC <- model_roc(svmR)
 knnROC <- model_roc(knn)
 bagROC <- model_roc(bag)
 rfROC <- model_roc(rf)
+nnetROC <- model_roc(nnet)
 
 
 train_re<- resamples(list(
@@ -327,14 +328,15 @@ train_re<- resamples(list(
   svmR = svmR,
   knn = knn,
   bag = bag,
-  rf = rf
+  rf = rf,
+  nnet = nnet
 ))
 
 dotplot(train_re, metric = "ROC")
 
 ```
 
-
+**ROC Comparision between models**
 ```{r, fig.width=8,fig.height=8}
 plot(lrROC, type = "s", col = 'red', legacy.axes = TRUE, 
      main = "Molecular Predictors ROC curves")
@@ -343,8 +345,9 @@ plot(glmnROC, type = "s", add = TRUE, col = 'blue', legacy.axes = TRUE)
 plot(nscROC, type = "s", add = TRUE, col = 'pink', legacy.axes = TRUE)
 plot(svmRROC, type = "s", add = TRUE, col = 'purple', legacy.axes = TRUE)
 plot(knnROC, type = "s", add = TRUE, col = 'yellow', legacy.axes = TRUE)
-plot(bagROC, type = "s", add = TRUE, col = 'cyan', legacy.axes = TRUE)
-plot(rfROC , type = "s", add = TRUE, legacy.axes = TRUE)
+plot(bagROC, type = "s", add = TRUE, col = 'grey', legacy.axes = TRUE)
+plot(rfROC, type = "s", add = TRUE, col = 'cyan', legacy.axes = TRUE)
+plot(nnetROC , type = "s", add = TRUE, legacy.axes = TRUE)
 legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"), 
                                paste("LDA (AUC =", round(ldaROC$auc,4), ")"), 
                                paste("GLMNET (AUC =", round(glmnROC$auc,4), ")"), 
@@ -352,9 +355,37 @@ legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"),
                                paste("SVM (AUC =", round(svmRROC$auc,4), ")"), 
                                paste("KNN (AUC =", round(knnROC$auc,4), ")"), 
                                paste("BAG (AUC =", round(bagROC$auc,4), ")"), 
-                               paste("RF (AUC =", round(rfROC $auc,4), ")")),
-       col=c("red", "green", "blue", "pink", "purple", "yellow", "cyan", "black"), lwd=2)
+                               paste("RF (AUC =", round(rfROC$auc,4), ")"), 
+                               paste("NNET (AUC =", round(nnetROC$auc,4), ")")),
+       col=c("red", "green", "blue", "pink", "purple", "yellow", "grey","cyan", "black"), lwd=2)
 ```
+
+**Confusion Matrix for All Models**
+```{r}
+# Create Results table
+testResults <- data.frame(
+  obs = test$Class,
+  lr = predict(lr, test[, 1:216]),
+  lda = predict(lda, test[, 1:216]),
+  glmnet = predict(glmn, test[, 1:216]),
+  nsc = predict(nsc, test[, 1:216]),
+  svmR = predict(svmR, test[, 1:216]),
+  knn = predict(knn, test[, 1:216]),
+  bag = predict(bag, test[, 1:216]),
+  rf = predict(rf, test[, 1:216]),
+  nnet = predict(knn, test[, 1:216])
+)
+
+selected_models <- c("lr", "lda", "glmnet", "nsc", "svmR", "knn", "bag", "rf", "nnet")
+
+# Iterate through model list and create CM per model
+for (model in selected_models) {
+  cat("Confusion Matrix for", model, ":\n")
+  print(confusionMatrix(testResults[[model]], testResults$obs, positive = "Changer"))
+  cat("\n")
+}
+```
+
 
 **Top Predictors**
 ```{r}
@@ -370,5 +401,63 @@ model_top10 %>%
   gt()
   
 # MATS4e, MATS4s match previous research
+
 ```
 
+**Shrinking CI**
+```{r, warning=FALSE, message=FALSE}
+#| cache: true
+set.seed(720)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+# Baseline LR and Selected Models
+lr<- class_function("glm") # baseline
+glmn<- class_grid("glmnet", glmnGrid)
+nsc<- class_grid("pam", nsc_grid)
+knn<- class_length("knn", 20)
+```
+
+```{r, fig.width=8,fig.height=8}
+lrROC <- model_roc(lr)
+glmnROC <- model_roc(glmn)
+nscROC <- model_roc(nsc)
+knnROC <- model_roc(knn)
+
+
+plot(lrROC, type = "s", col = 'red', legacy.axes = TRUE, 
+     main = "Molecular Predictors ROC curves")
+plot(glmnROC, type = "s", add = TRUE, col = 'blue', legacy.axes = TRUE)
+plot(nscROC, type = "s", add = TRUE, col = 'pink', legacy.axes = TRUE)
+plot(knnROC, type = "s", add = TRUE, col = 'yellow', legacy.axes = TRUE)
+legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"), 
+                               paste("GLMNET (AUC =", round(glmnROC$auc,4), ")"), 
+                               paste("NSC (AUC =", round(nscROC$auc,4), ")"), 
+                               paste("KNN (AUC =", round(knnROC$auc,4), ")")),
+       col=c("red", "blue", "pink", "yellow"), lwd=2)
+```
+
+
+
+**Compare models using confusion matrix**
+```{r}
+# Create Results table
+testResults <- data.frame(
+  obs = test$Class,
+  lr = predict(lr, test[, 1:216]),
+  glmnet = predict(glmn, test[, 1:216]),
+  nsc = predict(nsc, test[, 1:216]),
+  knn = predict(knn, test[, 1:216])
+)
+
+selected_models <- c("lr", "glmnet", "nsc", "knn")
+
+# Iterate through model list and create CM per model
+for (model in selected_models) {
+  cat("Confusion Matrix for", model, ":\n")
+  print(confusionMatrix(testResults[[model]], testResults$obs, positive = "Changer"))
+  cat("\n")
+}
+```
