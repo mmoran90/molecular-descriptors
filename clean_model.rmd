@@ -98,7 +98,8 @@ if(any(missing_values > 0)) {
 
 ```
 
-```{r}
+```{r warning=FALSE, message=FALSE, results="hide"}
+#| echo: false
 # identify numerical features
 numerical_features <- changer_new[, sapply(changer_new, is.numeric)]
 
@@ -420,6 +421,19 @@ nsc<- class_grid("pam", nsc_grid)
 knn<- class_length("knn", 20)
 ```
 
+**Dot Plot of Selected Models**
+```{r, warning=FALSE, message=FALSE}
+train_re<- resamples(list(
+  lr = lr,
+  glmn = glmn,
+  nsc = nsc,
+  knn = knn
+))
+
+dotplot(train_re, metric = "ROC")
+```
+
+**ROC of Selected Models**
 ```{r, fig.width=8,fig.height=8}
 lrROC <- model_roc(lr)
 glmnROC <- model_roc(glmn)
@@ -441,8 +455,8 @@ legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"),
 
 
 
-**Compare models using confusion matrix**
-```{r}
+**Compare Selected Models Using Confusion Matrix**
+```{r, warning=FALSE, message=FALSE}
 # Create Results table
 testResults <- data.frame(
   obs = test$Class,
