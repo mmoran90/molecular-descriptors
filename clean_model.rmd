@@ -31,6 +31,7 @@ library(igraph)
 library(tidyverse)
 library(gt)
 library(RCurl)
+library(reshape2)
 ```
 
 ```{r}
@@ -77,12 +78,145 @@ changer_new %>%
 ```{r}
 
 # data summary
-# summary(changer_new)
+summary(changer_new)
 
 ```
 
 ```{r}
 
+# variables with high variability (from stats summary)
+
+# VR2_Dt:
+
+# Mean: 10392.88
+# Standard Deviation: This is likely very high given the mean and the spread of the values.
+# Range: The minimum value is 6.77, and the maximum value is 38724.00, indicating a very high variability.
+# Notable Characteristics: Very high mean and a wide range suggest significant variability.
+
+# GATS1c:
+
+#Mean: 1.394
+#Standard Deviation: The values are somewhat close to each other but still show some spread.
+#Range: The minimum value is 1.039, and the maximum value is 1.698, indicating a moderate range.
+#Notable Characteristics: Large range from minimum to maximum.
+
+# BCUTp.1l:
+
+# Mean: -0.3098
+# Standard Deviation: There is variability around the mean.
+# Range: The minimum value is -0.4220, and the maximum value is 0.0560, indicating a significant range.
+# Notable Characteristics: Significant range indicating variability around the mean.
+
+# BCUTp.1h:
+
+# Mean: 0.2491
+# Standard Deviation: There is variability around the mean.
+# Range: The minimum value is 0.0560, and the maximum value is 0.7333, indicating a significant range.
+# Notable Characteristics: Significant range indicating variability around the mean.
+
+# topoDiameter:
+
+# Mean: 17.14
+# Standard Deviation: This shows variability given the spread of the values.
+# Range: The minimum value is 9.00, and the maximum value is 44.00, indicating a significant range.
+# Notable Characteristics: Significant range from minimum to maximum.
+
+# AATS8p:
+
+# Mean: 1.439
+# Standard Deviation: Shows some spread in the values.
+# Range: The minimum value is 1.088, and the maximum value is 2.589, indicating a considerable range.
+# Notable Characteristics: Values spread over a considerable range.
+
+# MDEC.22:
+
+# Mean: 16.55
+# Standard Deviation: This value indicates variability around the mean.
+# Range: The minimum value is 0.00, and the maximum value is 76.00, showing a high range.
+# Notable Characteristics: High variability with a significant range.
+
+# MDEC.23:
+
+# Mean: 40.87
+# Standard Deviation: This value indicates variability around the mean.
+# Range: The minimum value is 16.57, and the maximum value is 80.00, indicating a high range.
+# Notable Characteristics: High variability with a significant range.
+
+```
+
+```{r}
+
+# subset predictors with high variability
+selected_vars <- c("VR2_Dt", "GATS1c", "BCUTp.1l", "BCUTp.1h", "topoDiameter", 
+                   "AATS8p", "MDEC.22", "MDEC.23")
+subset_data <- changer_data %>% select(all_of(selected_vars))
+
+```
+
+```{r}
+
+# calculate the correlation matrix for the subset
+subset_cor_matrix <- cor(subset_data, use = "complete.obs")
+
+# visualize using ggplot2
+melted_subset_cor_matrix <- melt(subset_cor_matrix)
+ggplot(data = melted_subset_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Correlation") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 7, hjust = 1)) +
+  coord_fixed()
+
+```
+
+```{r}
+
+# histograms
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.7) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+# density plots
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = value, fill = variable)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+# box Plots
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot(fill = "blue", color = "black", alpha = 0.7) +
+  theme_minimal()
+
+# scatter Plot Matrix
+pairs(subset_data, pch = 21, bg = c("red", "green3", "blue")[changer_data$Class])
+
+```
+
+```{r}
+
+# outliers
+outliers <- apply(subset_data, 2, function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  x < (Q1 - 1.5 * IQR) | x > (Q3 + 1.5 * IQR)
+})
+
+```
+
+```{r}
+
+# identify NA columns
 colSums(is.na(changer_new))
 
 ```
@@ -100,34 +234,6 @@ lapply(names(numerical_features), function(feature) {
         ggtitle(paste("Distribution of", feature))
 })
 dev.off()
-
-```
-
-```{r}
-# corr matrix
-cor_matrix <- cor(numerical_features, use = "complete.obs")
-
-# plot correlation matrix
-#png("correlation_matrix.png")
-#corrplot(cor_matrix, method = "color", type = "upper", order = "hclust", 
-         #tl.col = "black", tl.srt = 45)
-#dev.off()
-```
-
-```{r}
-
-# set threshold for significant correlations
-threshold <- 0.75
-
-# create adjacency matrix where correlations above the threshold are marked
-adjacency_matrix <- abs(cor_matrix) > threshold
-
-# convert adjacency matrix to graph
-graph <- graph.adjacency(adjacency_matrix, mode = "undirected", weighted = TRUE)
-E(graph)$weight <- cor_matrix[adjacency_matrix]
-
-# plot the graph
-plot(graph, vertex.size = 10, vertex.label.cex = 0.7, edge.width = E(graph)$weight * 2)
 
 ```
 
