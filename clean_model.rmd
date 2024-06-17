@@ -77,81 +77,92 @@ changer_new %>%
 **Exploratory Data Analysis**
 ```{r}
 
-# data summary
-summary(changer_new)
-
-```
-
-```{r}
-
-# variables with high variability (from stats summary)
-
-# VR2_Dt:
-
-# Mean: 10392.88
-# Standard Deviation: This is likely very high given the mean and the spread of the values.
-# Range: The minimum value is 6.77, and the maximum value is 38724.00, indicating a very high variability.
-# Notable Characteristics: Very high mean and a wide range suggest significant variability.
-
-# GATS1c:
-
-#Mean: 1.394
-#Standard Deviation: The values are somewhat close to each other but still show some spread.
-#Range: The minimum value is 1.039, and the maximum value is 1.698, indicating a moderate range.
-#Notable Characteristics: Large range from minimum to maximum.
-
-# BCUTp.1l:
-
-# Mean: -0.3098
-# Standard Deviation: There is variability around the mean.
-# Range: The minimum value is -0.4220, and the maximum value is 0.0560, indicating a significant range.
-# Notable Characteristics: Significant range indicating variability around the mean.
-
-# BCUTp.1h:
-
-# Mean: 0.2491
-# Standard Deviation: There is variability around the mean.
-# Range: The minimum value is 0.0560, and the maximum value is 0.7333, indicating a significant range.
-# Notable Characteristics: Significant range indicating variability around the mean.
-
-# topoDiameter:
-
-# Mean: 17.14
-# Standard Deviation: This shows variability given the spread of the values.
-# Range: The minimum value is 9.00, and the maximum value is 44.00, indicating a significant range.
-# Notable Characteristics: Significant range from minimum to maximum.
-
-# AATS8p:
-
-# Mean: 1.439
-# Standard Deviation: Shows some spread in the values.
-# Range: The minimum value is 1.088, and the maximum value is 2.589, indicating a considerable range.
-# Notable Characteristics: Values spread over a considerable range.
-
-# MDEC.22:
-
-# Mean: 16.55
-# Standard Deviation: This value indicates variability around the mean.
-# Range: The minimum value is 0.00, and the maximum value is 76.00, showing a high range.
-# Notable Characteristics: High variability with a significant range.
-
-# MDEC.23:
-
-# Mean: 40.87
-# Standard Deviation: This value indicates variability around the mean.
-# Range: The minimum value is 16.57, and the maximum value is 80.00, indicating a high range.
-# Notable Characteristics: High variability with a significant range.
-
-```
-
-```{r}
-
 # subset predictors with high variability
 selected_vars <- c("VR2_Dt", "GATS1c", "BCUTp.1l", "BCUTp.1h", "topoDiameter", 
                    "AATS8p", "MDEC.22", "MDEC.23")
-subset_data <- changer_data %>% select(all_of(selected_vars))
+subset_data <- changer_new %>% select(all_of(selected_vars))
 
 ```
+
+```{r}
+
+# data summary for variables with high variability
+print(summary(subset_data))
+   
+```
+
+Variables with high variability can be useful in providing insights and implications for the dataset.
+The following are the reasons why the below variables were chosen:
+
+Wide Range of Values:
+Variables with high variability exhibit a wide range of values. This indicates that the data points are spread out over a larger range, which can be useful for capturing diverse patterns and relationships within the data.
+
+Potential for Differentiation:
+High variability suggests that these variables might be good candidates for differentiating between classes or groups. If the variability is related to the target variable (e.g., class labels), these variables might have high discriminative power.
+
+Presence of Outliers:
+High variability often implies the presence of outliers or extreme values. Outliers can provide important information about anomalies or rare events but might also skew the results if not handled properly.
+
+Impact on Model Training:
+Variables with high variability can impact model training in various ways. Models might need to account for this variability to make accurate predictions. Regularization techniques might be necessary to prevent overfitting.
+
+High Variability Variables:
+
+VR2_Dt:
+
+Mean: 10392.88
+Standard Deviation: This is likely very high given the mean and the spread of the values.
+Range: The minimum value is 6.77, and the maximum value is 38724.00, indicating a very high variability.
+Notable Characteristics: Very high mean and a wide range suggest significant variability.
+
+GATS1c:
+
+Mean: 1.394
+Standard Deviation: The values are somewhat close to each other but still show some spread.
+Range: The minimum value is 1.039, and the maximum value is 1.698, indicating a moderate range.
+Notable Characteristics: Large range from minimum to maximum.
+
+BCUTp.1l:
+
+Mean: -0.3098
+Standard Deviation: There is variability around the mean.
+Range: The minimum value is -0.4220, and the maximum value is 0.0560, indicating a significant range.
+Notable Characteristics: Significant range indicating variability around the mean.
+
+BCUTp.1h:
+
+Mean: 0.2491
+Standard Deviation: There is variability around the mean.
+Range: The minimum value is 0.0560, and the maximum value is 0.7333, indicating a significant range.
+Notable Characteristics: Significant range indicating variability around the mean.
+
+topoDiameter:
+
+Mean: 17.14
+Standard Deviation: This shows variability given the spread of the values.
+Range: The minimum value is 9.00, and the maximum value is 44.00, indicating a significant range.
+Notable Characteristics: Significant range from minimum to maximum.
+
+AATS8p:
+
+Mean: 1.439
+Standard Deviation: Shows some spread in the values.
+Range: The minimum value is 1.088, and the maximum value is 2.589, indicating a considerable range.
+Notable Characteristics: Values spread over a considerable range.
+
+MDEC.22:
+
+Mean: 16.55
+Standard Deviation: This value indicates variability around the mean.
+Range: The minimum value is 0.00, and the maximum value is 76.00, showing a high range.
+Notable Characteristics: High variability with a significant range.
+
+MDEC.23:
+
+Mean: 40.87
+Standard Deviation: This value indicates variability around the mean.
+Range: The minimum value is 16.57, and the maximum value is 80.00, indicating a high range.
+Notable Characteristics: High variability with a significant range.
 
 ```{r}
 
@@ -167,7 +178,9 @@ ggplot(data = melted_subset_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
                        name="Correlation") +
   theme_minimal() + 
   theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 7, hjust = 1)) +
+                                   size = 7, hjust = 1),
+        axis.title.x = element_blank(), 
+        axis.title.y = element_blank()) + 
   coord_fixed()
 
 ```
@@ -223,6 +236,7 @@ colSums(is.na(changer_new))
 
 ```{r warning=FALSE, message=FALSE, results="hide"}
 #| echo: false
+
 # identify numerical features
 numerical_features <- changer_new[, sapply(changer_new, is.numeric)]
 
