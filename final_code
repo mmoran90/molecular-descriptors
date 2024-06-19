@@ -1,0 +1,599 @@
+---
+title: "Cleaning and Classifications"
+author: 
+- Madeline Chang
+- Lorena Dorado
+- Marvin Moran
+date: "6/12/2024"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(earth)
+library(kernlab)
+library(mlbench)
+library(randomForest)
+library(dplyr)
+library(corrplot)
+library(pROC)
+library(RANN)
+library(glmnet)
+library(ggplot2)
+library(igraph)
+library(tidyverse)
+library(gt)
+library(RCurl)
+library(reshape2)
+```
+
+```{r}
+# Read data
+url <- "https://github.com/renaqd/team3-ADS503/raw/main/data.csv"
+changer_data<- read.csv(url, header = TRUE) %>%
+  mutate(Class = as.factor(Class))
+
+```
+
+```{r}
+# Check for and remove zero variance predictors
+degen<- nearZeroVar(changer_data)
+changer_new<- changer_data[,-degen]
+
+# Remove highly correlated variables of 75%
+corr<- cor(changer_new[,1:1094])
+high_corr <- findCorrelation(corr, cutoff = 0.75)
+changer_new<- changer_new[,-high_corr]
+
+# Create vector to store 216 values
+# For each column of predictors (1 to 216), calculate skew and store in skewed
+skewed<- length(216)
+for(i in 1:216){
+  skewed[i]<- skewness(changer_new[,i], na.rm = TRUE, type = 1)
+}
+
+# See where most of the data falls in range
+boxplot(skewed)
+```
+
+```{r}
+# Group data by class
+changer_new %>%
+  group_by(Class) %>%
+  summarise(n = n()) %>%
+  gt::gt()
+
+#write.csv(changer_new, "changer_new.csv", row.names = FALSE)
+
+```
+
+**Exploratory Data Analysis**
+```{r}
+
+# subset predictors with high variability
+selected_vars <- c("VR2_Dt", "GATS1c", "BCUTp.1l", "BCUTp.1h", "topoDiameter", 
+                   "AATS8p", "MDEC.22", "MDEC.23")
+subset_data <- changer_new %>% select(all_of(selected_vars))
+
+```
+
+```{r}
+
+# data summary for variables with high variability
+print(summary(subset_data))
+   
+```
+
+Variables with high variability can be useful in providing insights and implications for the dataset.
+The following are the reasons why the below variables were chosen:
+
+Wide Range of Values:
+Variables with high variability exhibit a wide range of values. This indicates that the data points are spread out over a larger range, which can be useful for capturing diverse patterns and relationships within the data.
+
+Potential for Differentiation:
+High variability suggests that these variables might be good candidates for differentiating between classes or groups. If the variability is related to the target variable (e.g., class labels), these variables might have high discriminative power.
+
+Presence of Outliers:
+High variability often implies the presence of outliers or extreme values. Outliers can provide important information about anomalies or rare events but might also skew the results if not handled properly.
+
+Impact on Model Training:
+Variables with high variability can impact model training in various ways. Models might need to account for this variability to make accurate predictions. Regularization techniques might be necessary to prevent overfitting.
+
+High Variability Variables:
+
+VR2_Dt:
+
+Mean: 10392.88
+Standard Deviation: This is likely very high given the mean and the spread of the values.
+Range: The minimum value is 6.77, and the maximum value is 38724.00, indicating a very high variability.
+Notable Characteristics: Very high mean and a wide range suggest significant variability.
+
+GATS1c:
+
+Mean: 1.394
+Standard Deviation: The values are somewhat close to each other but still show some spread.
+Range: The minimum value is 1.039, and the maximum value is 1.698, indicating a moderate range.
+Notable Characteristics: Large range from minimum to maximum.
+
+BCUTp.1l:
+
+Mean: -0.3098
+Standard Deviation: There is variability around the mean.
+Range: The minimum value is -0.4220, and the maximum value is 0.0560, indicating a significant range.
+Notable Characteristics: Significant range indicating variability around the mean.
+
+BCUTp.1h:
+
+Mean: 0.2491
+Standard Deviation: There is variability around the mean.
+Range: The minimum value is 0.0560, and the maximum value is 0.7333, indicating a significant range.
+Notable Characteristics: Significant range indicating variability around the mean.
+
+topoDiameter:
+
+Mean: 17.14
+Standard Deviation: This shows variability given the spread of the values.
+Range: The minimum value is 9.00, and the maximum value is 44.00, indicating a significant range.
+Notable Characteristics: Significant range from minimum to maximum.
+
+AATS8p:
+
+Mean: 1.439
+Standard Deviation: Shows some spread in the values.
+Range: The minimum value is 1.088, and the maximum value is 2.589, indicating a considerable range.
+Notable Characteristics: Values spread over a considerable range.
+
+MDEC.22:
+
+Mean: 16.55
+Standard Deviation: This value indicates variability around the mean.
+Range: The minimum value is 0.00, and the maximum value is 76.00, showing a high range.
+Notable Characteristics: High variability with a significant range.
+
+MDEC.23:
+
+Mean: 40.87
+Standard Deviation: This value indicates variability around the mean.
+Range: The minimum value is 16.57, and the maximum value is 80.00, indicating a high range.
+Notable Characteristics: High variability with a significant range.
+
+```{r}
+
+# calculate the correlation matrix for the subset
+subset_cor_matrix <- cor(subset_data, use = "complete.obs")
+
+# visualize using ggplot2
+melted_subset_cor_matrix <- melt(subset_cor_matrix)
+ggplot(data = melted_subset_cor_matrix, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "white") +
+  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+                       midpoint = 0, limit = c(-1,1), space = "Lab", 
+                       name="Correlation") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+                                   size = 7, hjust = 1),
+        axis.title.x = element_blank(), 
+        axis.title.y = element_blank()) + 
+  coord_fixed()
+
+```
+
+```{r}
+
+# histograms
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black", alpha = 0.7) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+# density plots
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = value, fill = variable)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~ variable, scales = "free") +
+  theme_minimal()
+
+# box Plots
+subset_data %>%
+  gather(key = "variable", value = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot(fill = "blue", color = "black", alpha = 0.7) +
+  theme_minimal()
+
+# scatter Plot Matrix
+pairs(subset_data, pch = 21, bg = c("red", "green3", "blue")[changer_data$Class])
+
+```
+
+```{r}
+
+# outliers
+outliers <- apply(subset_data, 2, function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  x < (Q1 - 1.5 * IQR) | x > (Q3 + 1.5 * IQR)
+})
+
+```
+
+```{r}
+
+# identify NA columns
+colSums(is.na(changer_new))
+
+```
+
+```{r warning=FALSE, message=FALSE, results="hide"}
+#| echo: false
+
+# identify numerical features
+numerical_features <- changer_new[, sapply(changer_new, is.numeric)]
+
+# print distribution for numerical features to PDF <<-- already done and found in GitHub
+pdf("numerical_distributions.pdf")
+lapply(names(numerical_features), function(feature) {
+    ggplot(changer_new, aes_string(x = feature)) + 
+        geom_histogram(bins = 30, fill = "blue", color = "black") + 
+        ggtitle(paste("Distribution of", feature))
+})
+dev.off()
+
+```
+
+```{r}
+
+# class distribution <<- code above shows numeric values only, this is a visual
+class_distribution <- table(changer_new$Class)
+barplot(class_distribution, main = "Class Distribution", col = "cyan",
+        xlab = "Class", ylab = "Frequency")
+
+```
+
+**Data Splitting**
+```{r}
+set.seed(720)
+
+# Create stratified random splits of the data (based on the classes)
+trainingRows <- createDataPartition(changer_new$Class, p = .5, list = FALSE) 
+
+# Subset data into train and test
+train <- changer_new[trainingRows, ]
+test <- changer_new[-trainingRows, ]
+
+# Create control method for cross validation
+set.seed(720)
+ctrl <- trainControl(method = "cv",
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+```
+
+**Model Building Strategies**
+```{r warning=FALSE, message=FALSE}
+# Function for Training Models
+class_function<- function(method){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with TuneGrids
+class_grid<- function(method, grid){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models for Neural Networks
+class_nnet<- function(method, grid, maxit){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               maxit = maxit,
+               trace = FALSE, 
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with KNN
+class_length<- function(method, length){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneLength = length,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with Bagging
+class_bag<- function(method, nbagg){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               nbagg = nbagg,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with Random Forest
+class_rf<- function(method, grid, ntree){
+  model<- train(x = train[,1:216], 
+               y = train$Class,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               ntree = ntree,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+```
+
+**Hyper Parameter Tuning Defined in Grids**
+```{r warning=FALSE, message=FALSE}
+set.seed(720)
+
+# TuneGrid for Lasso
+lassoGrid <- expand.grid(alpha = c(1),
+                        lambda = seq(.1, .4, length = 10))
+
+# TuneGrid for Penalized Logistic Regrssion
+glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
+                        lambda = seq(.1, .4, length = 10))
+
+# NSC TuneGrid
+nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
+
+
+# NNET TuneGrid #########################################################
+nnet_grid <- expand.grid(size=1:4, decay=c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4))
+
+# SVM TuneGrid
+sigmaEst <- kernlab::sigest(as.matrix(train[,1:216]))
+svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-4,+4))
+
+# RF TuneGrid
+mtryValues <- data.frame(mtry = seq(5,15,1))
+
+```
+
+**Train Models**
+```{r warning=FALSE, message=FALSE}
+#| cache: true
+
+set.seed(720)
+
+# Generalized Linear Model: Logistic Regression
+set.seed(720)
+lr<- class_function("glm")
+
+# Linear Discriminant Analysis
+set.seed(720)
+lda<- class_function("lda")
+
+# Lasso
+set.seed(720)
+lasso<- class_grid("glmnet", lassoGrid)
+plot(lasso, main = "Hyperparameter Tuning: Lasso")
+
+# Penalized LR
+set.seed(720)
+glmn<- class_grid("glmnet", glmnGrid)
+plot(glmn, main = "Hyperparameter Tuning: Penalized Logistic")
+
+# Nearest Shrunken Centroids
+set.seed(720)
+nsc<- class_grid("pam", nsc_grid)
+plot(nsc, main = "Hyperparameter Tuning: Nearest Shrunken Centroid")
+
+# svmR
+set.seed(720)
+svmR<- class_grid("svmRadial", svmgrid)
+plot(svmR, main = "Hyperparameter Tuning: Support Vector Machine")
+
+# NNET
+set.seed(720)
+nnet<- class_nnet("nnet", nnet_grid, 100)
+plot(nnet, main = "Hyperparameter Tuning: Neural Network")
+
+# K Nearest Neighbors
+set.seed(720)
+knn<- class_length("knn", 20)
+plot(knn, main = "Hyperparameter Tuning: K-Nearest Neighbors")
+
+# Bagging
+set.seed(720)
+bag<- class_bag("treebag", 50)
+
+# Random Forest
+set.seed(720)
+rf<- class_rf("rf", mtryValues, 100)
+plot(rf, main = "Hyperparameter Tuning: Random Forest")
+```
+
+**Model Performance**
+
+
+```{r, warning=FALSE, message=FALSE}
+model_roc <- function(model){
+  roc(response = model$pred$obs,
+             predictor = model$pred$Changer,
+             levels = rev(levels(model$pred$obs)))
+}
+
+lrROC <- model_roc(lr)
+ldaROC <- model_roc(lda)
+lassoROC<- model_roc(lasso)
+glmnROC <- model_roc(glmn)
+nscROC <- model_roc(nsc)
+svmRROC <- model_roc(svmR)
+knnROC <- model_roc(knn)
+bagROC <- model_roc(bag)
+rfROC <- model_roc(rf)
+nnetROC <- model_roc(nnet)
+
+
+train_re<- resamples(list(
+  lr = lr,
+  lda = lda,
+  lasso = lasso,
+  glmn = glmn,
+  nsc = nsc,
+  svmR = svmR,
+  knn = knn,
+  bag = bag,
+  rf = rf,
+  nnet = nnet
+))
+
+dotplot(train_re, metric = "ROC")
+
+```
+
+**ROC Comparison between models**
+```{r, fig.width=8,fig.height=8}
+plot(lrROC, type = "s", col = 'red', legacy.axes = TRUE, 
+     main = "Molecular Predictors ROC curves")
+plot(ldaROC, type = "s", add = TRUE, col = 'green', legacy.axes = TRUE)
+plot(glmnROC, type = "s", add = TRUE, col = 'blue', legacy.axes = TRUE)
+plot(nscROC, type = "s", add = TRUE, col = 'pink', legacy.axes = TRUE)
+plot(svmRROC, type = "s", add = TRUE, col = 'purple', legacy.axes = TRUE)
+plot(knnROC, type = "s", add = TRUE, col = 'yellow', legacy.axes = TRUE)
+plot(bagROC, type = "s", add = TRUE, col = 'grey', legacy.axes = TRUE)
+plot(rfROC, type = "s", add = TRUE, col = 'cyan', legacy.axes = TRUE)
+plot(nnetROC , type = "s", add = TRUE, col = 'black', legacy.axes = TRUE)
+plot(lassoROC , type = "s", add = TRUE, col = 'orange', legacy.axes = TRUE)
+legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"), 
+                               paste("LDA (AUC =", round(ldaROC$auc,4), ")"), 
+                               paste("GLMNET (AUC =", round(glmnROC$auc,4), ")"), 
+                               paste("NSC (AUC =", round(nscROC$auc,4), ")"), 
+                               paste("SVM (AUC =", round(svmRROC$auc,4), ")"), 
+                               paste("KNN (AUC =", round(knnROC$auc,4), ")"), 
+                               paste("BAG (AUC =", round(bagROC$auc,4), ")"), 
+                               paste("RF (AUC =", round(rfROC$auc,4), ")"), 
+                               paste("NNET (AUC =", round(nnetROC$auc,4), ")"),
+                               paste("LASSO (AUC =", round(lassoROC$auc,4), ")")),
+       col=c("red", "green", "blue", "pink", "purple", "yellow", "grey","cyan", "black", "orange"), lwd=2)
+```
+
+
+**Top Predictors**
+```{r}
+lr_Imp <- varImp(lr, scale = FALSE)
+glmn_Imp <- varImp(glmn, scale = FALSE)
+lasso_Imp <- varImp(lasso, scale = FALSE)
+knn_Imp <- varImp(knn, scale = FALSE)
+
+plot(lr_Imp, top = 10, main = "Top 10 Variables for CV Logistic Regression")
+plot(glmn_Imp, top = 10, main = "Top 10 Variables for CV Penalized Logistic")
+plot(lasso_Imp, top = 10, main = "Top 10 Variables for CV Lasso")
+plot(knn_Imp, top = 10, main = "Top 10 Variables for CV KNN")
+  
+# MATS4e, MATS4s match previous research
+
+```
+
+**Shrinking CI**
+```{r, warning=FALSE, message=FALSE}
+#| cache: true
+set.seed(720)
+ctrl <- trainControl(method = "repeatedcv", repeats = 5,
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+# Baseline LR and Selected Models
+lr_r<- class_function("glm") # baseline
+glmn_r<- class_grid("glmnet", glmnGrid)
+lasso_r<- class_grid("glmnet", lassoGrid)
+knn_r<- class_length("knn", 20)
+```
+
+**Dot Plot of Selected Models**
+```{r, warning=FALSE, message=FALSE}
+train_re<- resamples(list(
+  lr = lr_r,
+  glmn = glmn_r,
+  lasso = lasso_r,
+  knn = knn_r
+))
+
+dotplot(train_re, metric = "ROC")
+```
+
+**ROC of Selected Models**
+```{r, fig.width=8,fig.height=8}
+lrROC <- model_roc(lr_r)
+glmnROC <- model_roc(glmn_r)
+lassoROC <- model_roc(lasso_r)
+knnROC <- model_roc(knn_r)
+
+
+plot(lrROC, type = "s", col = 'red', legacy.axes = TRUE, 
+     main = "Molecular Predictors ROC curves")
+plot(glmnROC, type = "s", add = TRUE, col = 'blue', legacy.axes = TRUE)
+plot(lassoROC, type = "s", add = TRUE, col = 'pink', legacy.axes = TRUE)
+plot(knnROC, type = "s", add = TRUE, col = 'yellow', legacy.axes = TRUE)
+legend("bottomright", legend=c(paste("LR (AUC =", round(lrROC$auc,4), ")"), 
+                               paste("GLMNET (AUC =", round(glmnROC$auc,4), ")"), 
+                               paste("LASSO (AUC =", round(lassoROC$auc,4), ")"), 
+                               paste("KNN (AUC =", round(knnROC$auc,4), ")")),
+       col=c("red", "blue", "pink", "yellow"), lwd=2)
+```
+
+**Top Predictors**
+```{r}
+lr_r_Imp <- varImp(lr_r, scale = FALSE)
+glmn_r_Imp <- varImp(glmn_r, scale = FALSE)
+lasso_r_Imp <- varImp(lasso_r, scale = FALSE)
+knn_r_Imp <- varImp(knn_r, scale = FALSE)
+
+plot(lr_r_Imp, top = 10, main = "Top 10 Variables for Repeated CV Logistic Regression")
+plot(glmn_r_Imp, top = 10, main = "Top 10 Variables for Repeated CV Penalized Logistic")
+plot(lasso_r_Imp, top = 10, main = "Top 10 Variables for Repeated CV Lasso")
+plot(knn_r_Imp, top = 10, main = "Top 10 Variables for Repeated CV KNN")
+
+```
+
+**Compare Repeated Cross Validation Models Using Confusion Matrix**
+```{r, warning=FALSE, message=FALSE}
+# Create Results table
+testResults <- data.frame(
+  obs = test$Class,
+  lr = predict(lr_r, test[, 1:216]),
+  glmnet = predict(glmn_r, test[, 1:216]),
+  lasso = predict(lasso_r, test[, 1:216]),
+  knn = predict(knn_r, test[, 1:216])
+)
+
+selected_models <- c("lr", "glmnet", "lasso", "knn")
+
+# Iterate through model list and create CM per model
+for (model in selected_models) {
+  cat("Confusion Matrix for", model, ":\n")
+  print(confusionMatrix(testResults[[model]], testResults$obs, positive = "Changer"))
+  cat("\n")
+}
+```
