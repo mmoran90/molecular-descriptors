@@ -41,7 +41,7 @@ changer_data<- read.csv(url, header = TRUE) %>%
 ```{r}
 
 # identify NA columns
-colSums(is.na(changer_new))
+colSums(is.na(changer_data))
 
 ```
 
@@ -49,7 +49,7 @@ colSums(is.na(changer_new))
 # Skewedness
 skewed<- length(1177)
 for(i in 1:1177){
-  skewed[i]<- skewness(changer_new[,i], na.rm = TRUE, type = 1)
+  skewed[i]<- skewness(changer_data[,i], na.rm = TRUE, type = 1)
 }
 
 # See where most of the data falls in range
@@ -62,7 +62,7 @@ boxplot(skewed)
 # subset predictors with high variability
 selected_vars <- c("VR2_Dt", "GATS1c", "BCUTp.1l", "BCUTp.1h", "topoDiameter", 
                    "AATS8p", "MDEC.22", "MDEC.23")
-subset_data <- changer_new %>% select(all_of(selected_vars))
+subset_data <- changer_data %>% select(all_of(selected_vars))
 
 ```
 
@@ -213,7 +213,7 @@ outliers <- apply(subset_data, 2, function(x) {
 #| echo: false
 
 # identify numerical features
-numerical_features <- changer_new[, sapply(changer_new, is.numeric)]
+numerical_features <- changer_data[, sapply(changer_data, is.numeric)]
 
 # print distribution for numerical features to PDF <<-- already done and found in GitHub
 pdf("numerical_distributions.pdf")
@@ -234,6 +234,7 @@ barplot(class_distribution, main = "Class Distribution", col = "cyan",
         xlab = "Class", ylab = "Frequency")
 
 ```
+
 
 ## Try Lasso
 ```{r}
