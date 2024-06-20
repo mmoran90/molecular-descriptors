@@ -199,7 +199,7 @@ nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
 
 
 # NNET TuneGrid #########################################################
-nnet_grid <- expand.grid(size=1:4, decay=c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4))
+nnet_grid <- expand.grid(size=1:4, decay=c(0, 0.1, 0.3, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4))
 
 # SVM TuneGrid
 sigmaEst <- kernlab::sigest(as.matrix(data[,1:8]))
