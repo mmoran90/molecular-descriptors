@@ -1,0 +1,294 @@
+---
+title: "Final Team 3"
+author: "LD"
+date: "2024-06-20"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, warning=FALSE, message=FALSE}
+library(AppliedPredictiveModeling)
+library(e1071)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(partykit)
+library(earth)
+library(kernlab)
+library(mlbench)
+library(randomForest)
+library(dplyr)
+library(corrplot)
+library(pROC)
+library(RANN)
+library(glmnet)
+library(ggplot2)
+library(igraph)
+library(tidyverse)
+library(gt)
+library(RCurl)
+```
+
+```{r}
+# Read data
+url <- "https://github.com/renaqd/team3-ADS503/raw/main/data.csv"
+changer_data<- read.csv(url, header = TRUE) %>%
+  mutate(Class = as.factor(Class))
+
+```
+## Try Lasso
+```{r}
+#| cache: true
+
+# Define pre-processing steps
+prep_steps <- c("nzv", "center", "scale")
+
+# Set up training control with repeated k-fold cross-validation
+ctrl <- trainControl(method = "repeatedcv",    # Use repeated k-fold cross-validation
+                     number = 10,              # Number of folds
+                     repeats = 5,              # Number of repeats
+                     summaryFunction = twoClassSummary,
+                     classProbs = TRUE,
+                     savePredictions = TRUE)
+
+# Create the lambda grid for lasso
+lambda_grid <- expand.grid(alpha = 1, lambda = seq(0.005, 0.05, length = 20))
+
+# Set a random seed for reproducibility
+rseed <- 503
+set.seed(rseed)
+
+# Train the Lasso model
+lasso_model <- train(x = changer_data[,1:1177],
+                     y = changer_data$Class,
+                     method = "glmnet",
+                     tuneGrid = lambda_grid,
+                     preProcess = prep_steps,
+                     trControl = ctrl,
+                     metric = "ROC")
+
+# Output the best tuning parameters
+print(lasso_model$bestTune)
+
+# Extract the best model's lambda value
+best_lambda <- lasso_model$bestTune$lambda
+
+# Extract the coefficients for the best lambda value
+lasso_coef <- coef(lasso_model$finalModel, s = best_lambda)
+
+# Convert coefficients to a data frame
+lasso_coef_df <- as.data.frame(as.matrix(lasso_coef))
+
+# Identify the features with non-zero coefficients
+selected_features <- rownames(lasso_coef_df)[lasso_coef_df$s1 != 0]
+selected_features <- selected_features[selected_features != "(Intercept)"] # Remove the intercept if present
+
+# Print the selected features
+print(selected_features)
+```
+
+```{r}
+subset<- changer_data %>% 
+  select(all_of(selected_features))
+
+corr<- cor(subset)
+high_corr <- findCorrelation(corr, cutoff = 0.75)
+subset_new<- subset[,-high_corr]
+
+col_nam<- (colnames(subset_new))
+```
+
+```{r}
+lasso_imp<-varImp(lasso_model)
+plot(lasso_imp, top = 10)
+
+
+short<- c("GATS4c","SpMin3_Bhp", "MATS4e", "maxHBint10", "SpMax2_Bhp", "maxaasN", "ETA_BetaP_s", "maxHBint6")
+
+data<- subset %>% 
+  select(all_of(short)) %>%
+  cbind(changer_data$Class) %>%
+  rename("Class" = "changer_data$Class")
+```
+
+
+
+**Model Building Strategies**
+```{r warning=FALSE, message=FALSE}
+# Function for Training Models
+class_function<- function(method){
+  model<- train(Class ~.,
+               data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with TuneGrids
+class_grid<- function(method, grid){
+  model<- train(Class ~.,
+                data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models for Neural Networks
+class_nnet<- function(method, grid, maxit){
+  model<- train(Class ~.,
+                data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               maxit = maxit,
+               trace = FALSE, 
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with KNN
+class_length<- function(method, length){
+  model<- train(Class ~.,
+                data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneLength = length,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with Bagging
+class_bag<- function(method, nbagg){
+  model<- train(Class ~.,
+                data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               nbagg = nbagg,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+# Function for Training Models with Random Forest
+class_rf<- function(method, grid, ntree){
+  model<- train(Class ~.,
+                data = data,
+               method = method,
+               preProc = c("center", "scale"),
+               tuneGrid = grid,
+               ntree = ntree,
+               metric = "ROC",
+               trControl = ctrl)
+}
+
+```
+
+**Hyper Parameter Tuning Defined in Grids**
+```{r warning=FALSE, message=FALSE}
+set.seed(720)
+
+# TuneGrid for Penalized Logistic Regrssion
+glmnGrid <- expand.grid(alpha = c(0,  .1,  .2, .4, .6, .8, 1),
+                        lambda = seq(.1, .4, length = 10))
+
+# NSC TuneGrid
+nsc_grid<- data.frame(threshold = seq(0, 25, length = 30))
+
+
+# NNET TuneGrid #########################################################
+nnet_grid <- expand.grid(size=1:4, decay=c(0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4))
+
+# SVM TuneGrid
+sigmaEst <- kernlab::sigest(as.matrix(data[,1:8]))
+svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-4,+4))
+
+# RF TuneGrid
+mtryValues <- data.frame(mtry = seq(5,15,1))
+
+```
+
+**Train Models**
+```{r warning=FALSE, message=FALSE}
+#| cache: true
+rseed <- 503
+set.seed(rseed)
+
+# Generalized Linear Model: Logistic Regression
+set.seed(rseed)
+lr<- class_function("glm")
+
+# Linear Discriminant Analysis
+set.seed(rseed)
+lda<- class_function("lda")
+
+# Penalized LR
+set.seed(rseed)
+glmn<- class_grid("glmnet", glmnGrid)
+plot(glmn, main = "Hyperparameter Tuning: Penalized Logistic")
+
+# Nearest Shrunken Centroids
+set.seed(rseed)
+nsc<- class_grid("pam", nsc_grid)
+plot(nsc, main = "Hyperparameter Tuning: Nearest Shrunken Centroid")
+
+# svmR
+set.seed(rseed)
+svmR<- class_grid("svmRadial", svmgrid)
+plot(svmR, main = "Hyperparameter Tuning: Support Vector Machine")
+
+# NNET
+set.seed(rseed)
+nnet<- class_nnet("nnet", nnet_grid, 100)
+plot(nnet, main = "Hyperparameter Tuning: Neural Network")
+
+# K Nearest Neighbors
+set.seed(rseed)
+knn<- class_length("knn", 20)
+plot(knn, main = "Hyperparameter Tuning: K-Nearest Neighbors")
+
+# Bagging
+set.seed(rseed)
+bag<- class_bag("treebag", 50)
+
+# Random Forest
+set.seed(rseed)
+rf<- class_rf("rf", mtryValues, 100)
+plot(rf, main = "Hyperparameter Tuning: Random Forest")
+```
+
+```{r, warning=FALSE, message=FALSE}
+model_roc <- function(model){
+  roc(response = model$pred$obs,
+             predictor = model$pred$Changer,
+             levels = rev(levels(model$pred$obs)))
+}
+
+lrROC <- model_roc(lr)
+ldaROC <- model_roc(lda)
+glmnROC <- model_roc(glmn)
+nscROC <- model_roc(nsc)
+svmRROC <- model_roc(svmR)
+knnROC <- model_roc(knn)
+bagROC <- model_roc(bag)
+rfROC <- model_roc(rf)
+nnetROC <- model_roc(nnet)
+
+
+train_re<- resamples(list(
+  lr = lr,
+  lda = lda,
+  glmn = glmn,
+  nsc = nsc,
+  svmR = svmR,
+  knn = knn,
+  bag = bag,
+  rf = rf,
+  nnet = nnet
+))
+
+dotplot(train_re, metric = "ROC", main = "Confidence Intervals for Repeated CV")
+
+```
