@@ -206,7 +206,7 @@ sigmaEst <- kernlab::sigest(as.matrix(data[,1:8]))
 svmgrid <- expand.grid(sigma = sigmaEst, C = 2^seq(-4,+4))
 
 # RF TuneGrid
-mtryValues <- data.frame(mtry = seq(5,15,1))
+mtryValues <- data.frame(mtry = seq(0,8,1))
 
 ```
 
