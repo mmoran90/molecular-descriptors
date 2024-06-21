@@ -28,6 +28,7 @@ library(igraph)
 library(tidyverse)
 library(gt)
 library(RCurl)
+library(reshape2)
 ```
 
 ```{r}
@@ -190,7 +191,8 @@ subset_data %>%
   gather(key = "variable", value = "value") %>%
   ggplot(aes(x = variable, y = value)) +
   geom_boxplot(fill = "blue", color = "black", alpha = 0.7) +
-  theme_minimal()
+  theme_minimal() +
+  facet_wrap(~ variable, scales = "free")
 
 # scatter Plot Matrix
 pairs(subset_data, pch = 21, bg = c("red", "green3", "blue")[changer_data$Class])
